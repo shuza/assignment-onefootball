@@ -1,0 +1,17 @@
+{
+  "source": {
+    "INSTANCEVINTAGEMONOSTER": "./bin/vintagemonster.so"
+  },
+  "target_team": [
+    "Germany",
+    "England",
+    "France",
+    "Spain",
+    "Manchester United",
+    "Arsenal",
+    "Chelsea",
+    "Barcelona",
+    "Real Madrid",
+    "Bayern Munich"
+  ]
+}

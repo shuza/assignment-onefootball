@@ -1,5 +1,7 @@
 package player
 
+import "assignment-onefootball/issue"
+
 /**
  *  := 	create date: 05-Jul-2019
  *  := 	(C) CopyRight Shuza
@@ -9,6 +11,6 @@ package player
  **/
 
 type ISource interface {
-	Init() error
+	Init(logClient issue.ILog) error
 	FindPlayer(targetTeamNames []string) []Player
 }

@@ -1,10 +1,11 @@
-package source
+package main
 
 import (
+	"assignment-onefootball/issue"
 	"assignment-onefootball/player"
 	"encoding/json"
 	"fmt"
-	log "github.com/sirupsen/logrus"
+	"math/rand"
 	"net/http"
 	"sort"
 	"strings"
@@ -21,10 +22,12 @@ import (
  **/
 
 type VintageMonster struct {
-	baseUrl       string
-	startFileNo   uint8
-	endFileNo     uint8
-	clientTimeOut time.Duration
+	baseUrl     string
+	startFileNo uint16
+	endFileNo   uint16
+	rateLimit   uint16
+	logClient   issue.ILog
+	isBlocked   bool
 }
 
 type vintageBaseResponse struct {
@@ -48,29 +51,67 @@ func (resp *vintageBaseResponse) isOk() bool {
 	return strings.ToLower(resp.Status) == "ok"
 }
 
-func (s *VintageMonster) Init() error {
-	s.baseUrl = "https://vintagemonster.onefootball.com/api/teams/en"
-	s.startFileNo = 0
-	s.endFileNo = 3
-	//	s.endFileNo = ^uint8(0)
-	s.clientTimeOut = 3 * time.Second
-	fmt.Printf("Iterate from  %v  to  %v\n", s.startFileNo, s.endFileNo)
-	return nil
+//	Generate long wait time between 4 to 7 minute
+func (s *VintageMonster) getLongWaitDuration() time.Duration {
+	delta := rand.Intn(3)
+	minute := 4 + delta
+	return time.Duration(minute) * time.Minute
 }
 
-func (s *VintageMonster) generateUrl(fileNo uint8) string {
+func (s *VintageMonster) generateUrl(fileNo uint16) string {
 	return fmt.Sprintf("%s/%d.json", s.baseUrl, fileNo)
 }
 
+//	teamList should be sorted string list
+//	Use binary search to find the appropriate position for current team name in target team list
+//	Check if it actually present in the target team list
+func (s *VintageMonster) isListedTeam(teamList []string, name string) bool {
+	index := sort.SearchStrings(teamList, name)
+	return index < len(teamList) && teamList[index] == name
+}
+
+func (s *VintageMonster) Init(logClient issue.ILog) error {
+	s.baseUrl = "https://vintagemonster.onefootball.com/api/teams/en"
+	s.startFileNo = 1
+	s.endFileNo = 13660
+	//	s.endFileNo = ^uint16(0)
+	s.rateLimit = 100
+	s.logClient = logClient
+	return nil
+}
+
 func (s *VintageMonster) FindPlayer(targetTeamNames []string) []player.Player {
+	processStartTime := time.Now()
+	defer func() {
+		processDuration := time.Now().Sub(processStartTime)
+		s.logClient.Info("Duration", "total_process", fmt.Sprintf("%v", processDuration))
+	}()
+
 	//	Sort team names so that we can use binary search
 	sort.Strings(targetTeamNames)
 
 	playerList := make([]player.Player, 0)
-	playerCh := make(chan player.Player)
-	wg := sync.WaitGroup{}
+	playerCh := make(chan player.Player, 10)
+
+	var wg sync.WaitGroup
 
 	for i := s.startFileNo; i <= s.endFileNo; i++ {
+		if i != 0 && i%s.rateLimit == 0 {
+			//	Reach rate limit
+			//	Sleep sometime to bypass rate limit
+			//	Sleep time < responseTime * rateLimit
+			time.Sleep(5 * time.Second)
+			resp, err := s.doGet(s.generateUrl(i))
+			if err != nil && resp.Code == 403 {
+				//	Blocked by server, wait for a long period and try again
+				waitDuration := s.getLongWaitDuration()
+				s.logClient.Info("sleep", "blocked", fmt.Sprintf("wait until %v unblocked", waitDuration))
+				time.Sleep(s.getLongWaitDuration())
+				i--
+				continue
+			}
+		}
+
 		url := s.generateUrl(i)
 		wg.Add(1)
 		go s.parseTeamPlayer(targetTeamNames, url, &wg, playerCh)
@@ -117,18 +158,16 @@ func (s *VintageMonster) parseTeamPlayer(targetTeamNames []string, url string, w
 
 	response, err := s.doGet(url)
 	if err != nil {
-		log.Warnf("URL %s doGet Error : %v\n", url, err)
+		s.logClient.Error(url, "api_request", err)
 		return
 	}
 	if !response.isOk() {
 		//	API don't provide data so skip
-		log.Warnf("URL %s status not ok\n", url)
+		s.logClient.Info(url, "response_code", fmt.Sprintf("response code %s message %s", response.Status, response.Message))
 		return
 	}
 
-	//	Use binary search to find the appropriate position for current team name in target team list
-	//	Check if it actually present in the target team list
-	if index := sort.SearchStrings(targetTeamNames, response.Data.Team.Name); targetTeamNames[index] != response.Data.Team.Name {
+	if !s.isListedTeam(targetTeamNames, response.Data.Team.Name) {
 		return
 	}
 
@@ -148,8 +187,7 @@ func (s *VintageMonster) parseTeamPlayer(targetTeamNames []string, url string, w
 //	Hit the URL and parse response
 //	Use Decode() instead of Unmarshal()
 func (s *VintageMonster) doGet(url string) (vintageBaseResponse, error) {
-	client := http.Client{Timeout: s.clientTimeOut}
-	resp, err := client.Get(url)
+	resp, err := http.Get(url)
 	if err != nil {
 		return vintageBaseResponse{}, err
 	}
@@ -157,8 +195,13 @@ func (s *VintageMonster) doGet(url string) (vintageBaseResponse, error) {
 
 	var response vintageBaseResponse
 	if err := json.NewDecoder(resp.Body).Decode(&response); err != nil {
-		return vintageBaseResponse{}, err
+		return vintageBaseResponse{
+			Status: resp.Status,
+			Code:   resp.StatusCode,
+		}, err
 	}
 
 	return response, nil
 }
+
+var INSTANCEVINTAGEMONOSTER VintageMonster

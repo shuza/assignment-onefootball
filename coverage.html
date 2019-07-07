@@ -1,0 +1,427 @@
+
+<!DOCTYPE html>
+<html>
+	<head>
+		<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+		<style>
+			body {
+				background: black;
+				color: rgb(80, 80, 80);
+			}
+			body, pre, #legend span {
+				font-family: Menlo, monospace;
+				font-weight: bold;
+			}
+			#topbar {
+				background: black;
+				position: fixed;
+				top: 0; left: 0; right: 0;
+				height: 42px;
+				border-bottom: 1px solid rgb(80, 80, 80);
+			}
+			#content {
+				margin-top: 50px;
+			}
+			#nav, #legend {
+				float: left;
+				margin-left: 10px;
+			}
+			#legend {
+				margin-top: 12px;
+			}
+			#nav {
+				margin-top: 10px;
+			}
+			#legend span {
+				margin: 0 5px;
+			}
+			.cov0 { color: rgb(192, 0, 0) }
+.cov1 { color: rgb(128, 128, 128) }
+.cov2 { color: rgb(116, 140, 131) }
+.cov3 { color: rgb(104, 152, 134) }
+.cov4 { color: rgb(92, 164, 137) }
+.cov5 { color: rgb(80, 176, 140) }
+.cov6 { color: rgb(68, 188, 143) }
+.cov7 { color: rgb(56, 200, 146) }
+.cov8 { color: rgb(44, 212, 149) }
+.cov9 { color: rgb(32, 224, 152) }
+.cov10 { color: rgb(20, 236, 155) }
+
+		</style>
+	</head>
+	<body>
+		<div id="topbar">
+			<div id="nav">
+				<select id="files">
+				
+				<option value="file0">assignment-onefootball/main.go (40.7%)</option>
+				
+				<option value="file1">assignment-onefootball/source/vintagemonster.go (89.9%)</option>
+				
+				</select>
+			</div>
+			<div id="legend">
+				<span>not tracked</span>
+			
+				<span class="cov0">not covered</span>
+				<span class="cov8">covered</span>
+			
+			</div>
+		</div>
+		<div id="content">
+		
+		<pre class="file" id="file0" style="display: none">package main
+
+import (
+        "assignment-onefootball/issue"
+        "assignment-onefootball/player"
+        "flag"
+        "fmt"
+        "github.com/spf13/viper"
+        "os"
+        "plugin"
+        "strings"
+)
+
+/**
+ *  :=         create date: 05-Jul-2019
+ *  :=         (C) CopyRight Shuza
+ *  :=         shuza.ninja
+ *  :=         shuza.sa@gmail.com
+ *  :=         Code        :        Coffee        : Fun
+ **/
+
+func main() <span class="cov0" title="0">{
+        configPath := flag.String("config", ".", "path of config.json file")
+        flag.Parse()
+
+        teamNames, err := ParseTargetTeamNames(*configPath, "json", "config")
+        if err != nil </span><span class="cov0" title="0">{
+                panic(err)</span>
+        }
+
+        <span class="cov0" title="0">logFile, err := os.OpenFile("assignment_log.txt", os.O_WRONLY|os.O_CREATE, 0755)
+        if err != nil </span><span class="cov0" title="0">{
+                panic(err)</span>
+        }
+
+        <span class="cov0" title="0">resultFile, err := os.OpenFile("result.txt", os.O_WRONLY|os.O_CREATE, 0755)
+        if err != nil </span><span class="cov0" title="0">{
+                panic(err)</span>
+        }
+
+        //        Initiate log client to store log message
+        <span class="cov0" title="0">logClient := issue.StdLog{}
+        logClient.Init(logFile)
+
+        //        Initiate log client to store result
+        outputClient := issue.StdLog{}
+
+        pluginList, err := ParseSource(*configPath, "json", "config")
+        if err != nil </span><span class="cov0" title="0">{
+                panic(err)</span>
+        }
+
+        <span class="cov0" title="0">playerList := make([]player.Player, 0)
+
+        for i, v := range pluginList </span><span class="cov0" title="0">{
+                if err := v.Init(&amp;logClient); err != nil </span><span class="cov0" title="0">{
+                        logClient.Error(fmt.Sprintf("Plugin No - %d", i), "Plugin Init", err)
+                        continue</span>
+                }
+                <span class="cov0" title="0">players := v.FindPlayer(teamNames)
+                playerList = append(playerList, players...)</span>
+        }
+
+        <span class="cov0" title="0">outputClient.Init(resultFile)
+        for i, v := range playerList </span><span class="cov0" title="0">{
+                str := fmt.Sprintf("%d.  %v", i+1, v)
+                fmt.Println(str)
+                outputClient.Infoln(str)
+        }</span>
+
+}
+
+func ParseTargetTeamNames(path string, configType string, fileName string) ([]string, error) <span class="cov8" title="1">{
+        viper.AddConfigPath(path)
+        viper.SetConfigType(configType)
+        viper.SetConfigName(fileName)
+        if err := viper.ReadInConfig(); err != nil </span><span class="cov8" title="1">{
+                return nil, err
+        }</span>
+        <span class="cov8" title="1">targetName := viper.GetStringSlice("target_team")
+        return targetName, nil</span>
+}
+
+func ParseSource(path string, configType string, fileName string) ([]player.ISource, error) <span class="cov8" title="1">{
+        viper.AddConfigPath(path)
+        viper.SetConfigType(configType)
+        viper.SetConfigName(fileName)
+        if err := viper.ReadInConfig(); err != nil </span><span class="cov0" title="0">{
+                return nil, err
+        }</span>
+
+        <span class="cov8" title="1">sources := make([]player.ISource, 0)
+        srcConfig := viper.GetStringMapString("source")
+        for k, v := range srcConfig </span><span class="cov8" title="1">{
+                plug, err := plugin.Open(v)
+                if err != nil </span><span class="cov0" title="0">{
+                        //        invalid plugin file
+                        continue</span>
+                }
+
+                <span class="cov8" title="1">sym, err := plug.Lookup(strings.ToUpper(k))
+                if err != nil </span><span class="cov0" title="0">{
+                        //        plugin not export correct access key
+                        continue</span>
+                }
+
+                <span class="cov8" title="1">source, ok := sym.(player.ISource)
+                if ok </span><span class="cov8" title="1">{
+                        sources = append(sources, source)
+                }</span>
+        }
+
+        <span class="cov8" title="1">return sources, nil</span>
+}
+</pre>
+		
+		<pre class="file" id="file1" style="display: none">package main
+
+import (
+        "assignment-onefootball/issue"
+        "assignment-onefootball/player"
+        "encoding/json"
+        "fmt"
+        "math/rand"
+        "net/http"
+        "sort"
+        "strings"
+        "sync"
+        "time"
+)
+
+/**
+ *  :=         create date: 05-Jul-2019
+ *  :=         (C) CopyRight Shuza
+ *  :=         shuza.ninja
+ *  :=         shuza.sa@gmail.com
+ *  :=         Code        :        Coffee        : Fun
+ **/
+
+type VintageMonster struct {
+        baseUrl     string
+        startFileNo uint16
+        endFileNo   uint16
+        rateLimit   uint16
+        logClient   issue.ILog
+        isBlocked   bool
+}
+
+type vintageBaseResponse struct {
+        Status string `json:"status"`
+        Code   int    `json:"code"`
+        Data   struct {
+                Team struct {
+                        Id      int    `json:"id"`
+                        Name    string `json:"name"`
+                        Players []struct {
+                                Id       string `json:"id"`
+                                FullName string `json:"name"`
+                                Age      string `json:"age"`
+                        } `json:"players"`
+                } `json:"team"`
+        } `json:"data"`
+        Message string `json:"message"`
+}
+
+func (resp *vintageBaseResponse) isOk() bool <span class="cov8" title="1">{
+        return strings.ToLower(resp.Status) == "ok"
+}</span>
+
+//        Generate long wait time between 4 to 7 minute
+func (s *VintageMonster) getLongWaitDuration() time.Duration <span class="cov8" title="1">{
+        delta := rand.Intn(3)
+        minute := 4 + delta
+        return time.Duration(minute) * time.Minute
+}</span>
+
+func (s *VintageMonster) generateUrl(fileNo uint16) string <span class="cov8" title="1">{
+        return fmt.Sprintf("%s/%d.json", s.baseUrl, fileNo)
+}</span>
+
+//        teamList should be sorted string list
+//        Use binary search to find the appropriate position for current team name in target team list
+//        Check if it actually present in the target team list
+func (s *VintageMonster) isListedTeam(teamList []string, name string) bool <span class="cov8" title="1">{
+        index := sort.SearchStrings(teamList, name)
+        return index &lt; len(teamList) &amp;&amp; teamList[index] == name
+}</span>
+
+func (s *VintageMonster) Init(logClient issue.ILog) error <span class="cov8" title="1">{
+        s.baseUrl = "https://vintagemonster.onefootball.com/api/teams/en"
+        s.startFileNo = 1
+        s.endFileNo = 13660
+        //        s.endFileNo = ^uint16(0)
+        s.rateLimit = 100
+        s.logClient = logClient
+        return nil
+}</span>
+
+func (s *VintageMonster) FindPlayer(targetTeamNames []string) []player.Player <span class="cov8" title="1">{
+        processStartTime := time.Now()
+        defer func() </span><span class="cov8" title="1">{
+                processDuration := time.Now().Sub(processStartTime)
+                s.logClient.Info("Duration", "total_process", fmt.Sprintf("%v", processDuration))
+        }</span>()
+
+        //        Sort team names so that we can use binary search
+        <span class="cov8" title="1">sort.Strings(targetTeamNames)
+
+        playerList := make([]player.Player, 0)
+        playerCh := make(chan player.Player, 10)
+
+        var wg sync.WaitGroup
+
+        for i := s.startFileNo; i &lt;= s.endFileNo; i++ </span><span class="cov8" title="1">{
+                if i != 0 &amp;&amp; i%s.rateLimit == 0 </span><span class="cov8" title="1">{
+                        //        Reach rate limit
+                        //        Sleep sometime to bypass rate limit
+                        //        Sleep time &lt; responseTime * rateLimit
+                        time.Sleep(5 * time.Second)
+                        resp, err := s.doGet(s.generateUrl(i))
+                        if err != nil &amp;&amp; resp.Code == 403 </span><span class="cov0" title="0">{
+                                //        Blocked by server, wait for a long period and try again
+                                waitDuration := s.getLongWaitDuration()
+                                s.logClient.Info("sleep", "blocked", fmt.Sprintf("wait until %v unblocked", waitDuration))
+                                time.Sleep(s.getLongWaitDuration())
+                                i--
+                                continue</span>
+                        }
+                }
+
+                <span class="cov8" title="1">url := s.generateUrl(i)
+                wg.Add(1)
+                go s.parseTeamPlayer(targetTeamNames, url, &amp;wg, playerCh)</span>
+        }
+
+        <span class="cov8" title="1">go s.closePlayerChan(&amp;wg, playerCh)
+
+        playerNames := make([]string, 0)
+        playerMap := make(map[string]player.PlayerInfo)
+
+        for p := range playerCh </span><span class="cov8" title="1">{
+                if v, ok := playerMap[p.Name]; ok </span><span class="cov8" title="1">{
+                        p.Details.Teams = append(v.Teams, p.Details.Teams...)
+                }</span> else<span class="cov8" title="1"> {
+                        //        Add new player name
+                        playerNames = append(playerNames, p.Name)
+                }</span>
+                <span class="cov8" title="1">playerMap[p.Name] = p.Details</span>
+        }
+
+        //        Sort player name and prepare player list
+        <span class="cov8" title="1">sort.Strings(playerNames)
+        for _, v := range playerNames </span><span class="cov8" title="1">{
+                playerList = append(playerList, player.Player{
+                        Name:    v,
+                        Details: playerMap[v],
+                })
+        }</span>
+
+        <span class="cov8" title="1">return playerList</span>
+}
+
+//        Wait until all goroutines finish their task
+//        then close the channel
+func (s *VintageMonster) closePlayerChan(wg *sync.WaitGroup, playerCh chan player.Player) <span class="cov8" title="1">{
+        wg.Wait()
+        close(playerCh)
+}</span>
+
+//        Must call wg.Done() when method is finished
+//        Otherwise deadlock will arise
+func (s *VintageMonster) parseTeamPlayer(targetTeamNames []string, url string, wg *sync.WaitGroup, playerCh chan&lt;- player.Player) <span class="cov8" title="1">{
+        defer wg.Done()
+
+        response, err := s.doGet(url)
+        if err != nil </span><span class="cov0" title="0">{
+                s.logClient.Error(url, "api_request", err)
+                return
+        }</span>
+        <span class="cov8" title="1">if !response.isOk() </span><span class="cov8" title="1">{
+                //        API don't provide data so skip
+                s.logClient.Info(url, "response_code", fmt.Sprintf("response code %s message %s", response.Status, response.Message))
+                return
+        }</span>
+
+        <span class="cov8" title="1">if !s.isListedTeam(targetTeamNames, response.Data.Team.Name) </span><span class="cov8" title="1">{
+                return
+        }</span>
+
+        <span class="cov8" title="1">for _, v := range response.Data.Team.Players </span><span class="cov8" title="1">{
+                player := player.Player{
+                        Name: v.FullName,
+                        Details: player.PlayerInfo{
+                                Age:   v.Age,
+                                Teams: []string{response.Data.Team.Name},
+                        },
+                }
+
+                playerCh &lt;- player
+        }</span>
+}
+
+//        Hit the URL and parse response
+//        Use Decode() instead of Unmarshal()
+func (s *VintageMonster) doGet(url string) (vintageBaseResponse, error) <span class="cov8" title="1">{
+        resp, err := http.Get(url)
+        if err != nil </span><span class="cov8" title="1">{
+                return vintageBaseResponse{}, err
+        }</span>
+        <span class="cov8" title="1">defer resp.Body.Close()
+
+        var response vintageBaseResponse
+        if err := json.NewDecoder(resp.Body).Decode(&amp;response); err != nil </span><span class="cov8" title="1">{
+                return vintageBaseResponse{
+                        Status: resp.Status,
+                        Code:   resp.StatusCode,
+                }, err
+        }</span>
+
+        <span class="cov8" title="1">return response, nil</span>
+}
+
+var INSTANCEVINTAGEMONOSTER VintageMonster
+</pre>
+		
+		</div>
+	</body>
+	<script>
+	(function() {
+		var files = document.getElementById('files');
+		var visible;
+		files.addEventListener('change', onChange, false);
+		function select(part) {
+			if (visible)
+				visible.style.display = 'none';
+			visible = document.getElementById(part);
+			if (!visible)
+				return;
+			files.value = part;
+			visible.style.display = 'block';
+			location.hash = part;
+		}
+		function onChange() {
+			select(files.value);
+			window.scrollTo(0, 0);
+		}
+		if (location.hash != "") {
+			select(location.hash.substr(1));
+		}
+		if (!visible) {
+			select("file0");
+		}
+	})();
+	</script>
+</html>
